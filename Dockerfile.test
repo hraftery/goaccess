@@ -1,0 +1,28 @@
+# Run some e2e system tests to confirm expected behaviour on latest Ubuntu.
+#
+# Build (only needed when goaccess source changes):
+#     docker build -t goaccess-test -f Dockerfile.test .
+#
+# Run tests (test script changes don't require a rebuild):
+#     docker run --rm -v ./tests:/goaccess/tests goaccess-test
+#
+# Note the tests/ directory is excluded from the build context using dockerignore.
+# Otherwise any change to a test would require a rebuild of this image. The drawback
+# is the need for the dockerignore file, and that the directory must be mounted at
+# run time (eg. using the -v flag in the run command).
+
+FROM ubuntu:latest
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # To build goaccess
+    build-essential autoconf automake gettext autopoint libncursesw5-dev libssl-dev libmaxminddb-dev \
+    # To test logrotate (nginx gives us the initial log directory, and /etc/logrotate.d/nginx)
+    nginx logrotate jq \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY . /goaccess
+WORKDIR /goaccess
+RUN autoreconf -fiv && rm -rf autom4te.cache
+RUN ./configure
+RUN make && make install
+
+CMD ["tests/works_with_logrotate.sh"]
